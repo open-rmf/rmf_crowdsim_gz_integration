@@ -117,7 +117,7 @@ void RustySystem::Configure(const gz::sim::Entity &_entity,
       if (sourceDescription->GetName() == "source_sink")
       {
         auto start_pos = sourceDescription->Get<math::Vector3d>("start");
-        Position start {start_pos.X(), start_pos.Y(), 0};
+        Position start {(float)start_pos.X(), (float)start_pos.Y(), 0};
         std::vector<Position> waypoints;
         if (!sourceDescription->HasElement("waypoints"))
         {
@@ -130,7 +130,7 @@ void RustySystem::Configure(const gz::sim::Entity &_entity,
         while (waypointDesc != nullptr)
         {
           auto waypoint_pos = waypointDesc->Get<math::Vector3d>();
-          waypoints.push_back(Position{waypoint_pos.X(), waypoint_pos.Y(), waypoint_pos.Z()});
+          waypoints.push_back(Position{(float)waypoint_pos.X(), (float)waypoint_pos.Y(), 0});
           waypointDesc = waypointDesc->GetNextElement();
         }
         crowdsim_add_source_sink(
