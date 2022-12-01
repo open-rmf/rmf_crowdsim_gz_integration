@@ -262,6 +262,10 @@ pub extern "C" fn crowdsim_new(
 
     let mut crowd_sim = Simulation::new(stub_spatial);
 
+    let event_listener = Arc::new(Mutex::new(
+        Callbacks { system, spawn, moving, idle, reached }));
+    crowd_sim.add_event_listener(event_listener.clone());
+
     let nav_filename = match unsafe { CStr::from_ptr(nav_path) }.to_str() {
         Ok(s) => s,
         Err(err) => {
@@ -416,10 +420,6 @@ pub extern "C" fn crowdsim_new(
     for name in &sim_config.robots {
         robot_map.insert(name.clone(), None);
     }
-
-    let event_listener = Arc::new(Mutex::new(
-        Callbacks { system, spawn, moving, idle, reached }));
-    crowd_sim.add_event_listener(event_listener.clone());
 
     Box::into_raw(Box::new(SimulationBinding
     {
