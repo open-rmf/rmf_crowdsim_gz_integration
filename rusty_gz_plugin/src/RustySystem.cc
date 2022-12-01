@@ -147,6 +147,8 @@ void RustySystem::Configure(const gz::sim::Entity &_entity,
                             gz::sim::EntityComponentManager &_ecm,
                             gz::sim::EventManager &)
 {
+  if (!rclcpp::ok())
+    rclcpp::init(0, nullptr);
   this->node = std::make_shared<rclcpp::Node>("crowdsim_plugin");
   const auto transient_qos = rclcpp::SystemDefaultsQoS()
         .keep_last(1)
