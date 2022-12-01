@@ -79,6 +79,11 @@ extern "C" void moving_agent(void* v_system, uint64_t id)
 
 }
 
+extern "C" void idle_agent(void* v_system, uint64_t id)
+{
+
+}
+
 RustySystem::RustySystem()
 {
 
@@ -120,7 +125,9 @@ void RustySystem::Configure(const gz::sim::Entity &_entity,
     agents.c_str(),
     nav.c_str(),
     (void*)(this),
-    spawn_agent
+    spawn_agent,
+    moving_agent,
+    idle_agent
   );
   
   worldName = _ecm.Component<components::Name>(_entity)->Data();

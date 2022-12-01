@@ -46,7 +46,7 @@ namespace rusty
 
     public: void PostUpdate(
               const gz::sim::UpdateInfo &_info,
-              const gz::sim::EntityComponentManager &_ecm) override = 0;
+              const gz::sim::EntityComponentManager &_ecm) override;
 
     private: simulation_binding_t* crowdsim;
     public:
