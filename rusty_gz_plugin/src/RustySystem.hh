@@ -53,10 +53,8 @@ namespace rusty
     private: simulation_binding_t* crowdsim;
     public:
       std::unordered_map<gz::sim::Entity, uint64_t> robot_map;
-      std::unordered_map<gz::sim::Entity, uint64_t> agent_map;
       std::unordered_map<std::string, uint64_t> agent_name_map;
       std::unordered_map<uint64_t, std::string> reverse_agent_name_map;
-      std::unordered_map<std::string, uint64_t> spawning_queue;
 
       // (agent_id -> (goal_id -> request_id))
       std::unordered_map<uint64_t, std::unordered_map<uint64_t, uint64_t>> pending_goals;

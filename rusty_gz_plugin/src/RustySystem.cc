@@ -74,7 +74,8 @@ extern "C" void spawn_agent(
     createEntityFromStr(name, sdf);
 
     auto* system = static_cast<RustySystem*>(v_system);
-    system->spawning_queue.insert({name, id});
+    system->agent_name_map.insert({name, id});
+    system->reverse_agent_name_map.insert({id, name});
 }
 
 extern "C" void moving_agent(void* v_system, uint64_t id)
@@ -247,8 +248,8 @@ void RustySystem::PreUpdate(const gz::sim::UpdateInfo &_info,
   _ecm.Each<components::Actor, components::Name>(
     [&](const Entity &_entity, const components::Actor *, components::Name *name)->bool
     {
-      const auto it = this->spawning_queue.find(name->Data());
-      if (it == this->spawning_queue.end())
+      const auto it = this->agent_name_map.find(name->Data());
+      if (it == this->agent_name_map.end())
         return true;
 
       const auto agent_id = it->second;
@@ -256,6 +257,9 @@ void RustySystem::PreUpdate(const gz::sim::UpdateInfo &_info,
       if (position.visible < 0)
       {
         _ecm.RequestRemoveEntity(_entity, true);
+        // Bookkeeping to avoid maps growing indefinitely
+        this->agent_name_map.erase(it);
+        this->reverse_agent_name_map.erase(agent_id);
         return true;
       }
 
