@@ -14,6 +14,7 @@
 #include <gz/transport/Node.hh>
 
 #include <gz/common/StringUtils.hh>
+#include <chart_sim_msgs/msg/agent_go_to_place.hpp>
 
 using namespace rusty;
 
@@ -76,12 +77,58 @@ extern "C" void spawn_agent(
 extern "C" void moving_agent(void* v_system, uint64_t id)
 {
   auto* system = static_cast<RustySystem*>(v_system);
+  const auto it = system->reverse_agent_name_map.find(id);
+  if (it == system->reverse_agent_name_map.end())
+    return;
 
+  system->agent_set_animation_pub->publish(
+        chart_sim_msgs::build<chart_sim_msgs::msg::AgentSetAnimation>()
+          .agent(it->second)
+          .animation("walk")
+          .cmd_id(-1)
+        );
 }
 
 extern "C" void idle_agent(void* v_system, uint64_t id)
 {
+  auto* system = static_cast<RustySystem*>(v_system);
+  const auto it = system->reverse_agent_name_map.find(id);
+  if (it == system->reverse_agent_name_map.end())
+    return;
 
+  system->agent_set_animation_pub->publish(
+        chart_sim_msgs::build<chart_sim_msgs::msg::AgentSetAnimation>()
+          .agent(it->second)
+          .animation("idle")
+          .cmd_id(-1)
+        );
+}
+
+extern "C" void goal_reached(void* v_system, uint64_t agent_id, uint64_t goal_id)
+{
+  auto* system = static_cast<RustySystem*>(v_system);
+  const auto a_it = system->pending_goals.find(agent_id);
+  if (a_it == system->pending_goals.end())
+  {
+    gzerr << "Could not find pending goals for agent [" << agent_id << "]\n";
+    return;
+  }
+
+  const auto g_it = a_it->second.find(goal_id);
+  if (g_it == a_it->second.end())
+  {
+    gzerr << "Could not find a command_id for goal [" << goal_id << "] of agent ["
+          << agent_id << "]\n";
+    return;
+  }
+
+  const auto cmd_id = g_it->second;
+  system->event_finished_pub->publish(
+        chart_sim_msgs::build<chart_sim_msgs::msg::EventFinished>()
+        .cmd_id(cmd_id));
+
+  // We no longer need to remember this goal.
+  system->pending_goals[agent_id].erase(goal_id);
 }
 
 RustySystem::RustySystem()
@@ -100,6 +147,34 @@ void RustySystem::Configure(const gz::sim::Entity &_entity,
                             gz::sim::EntityComponentManager &_ecm,
                             gz::sim::EventManager &)
 {
+  this->node = std::make_shared<rclcpp::Node>("crowdsim_plugin");
+  const auto transient_qos = rclcpp::SystemDefaultsQoS()
+        .keep_last(1)
+        .reliable()
+        .transient_local();
+
+  this->agent_set_animation_pub = this->node->create_publisher<AgentSetAnimation>(
+        "agent_set_animation", transient_qos);
+
+  this->agent_go_to_place_sub = this->node->create_subscription<AgentGoToPlace>(
+      "agent_goto", transient_qos, [&](const std::shared_ptr<AgentGoToPlace>& msg)
+    {
+      const auto it = this->agent_name_map.find(msg->agent);
+      if (it == this->agent_name_map.end())
+      {
+        gzerr << "Cannot find agent named [" << msg->agent << "]\n";
+        return;
+      }
+
+      const auto agent_id = it->second;
+      const auto goal_id = crowdsim_request_goal(
+            this->crowdsim, agent_id, msg->place.c_str());
+      if (goal_id < 0)
+        return;
+
+      this->pending_goals[agent_id][goal_id] = msg->cmd_id;
+    });
+
   std::string agents;
   std::string nav;
   if (_sdf->HasElement("agents"))
@@ -210,7 +285,8 @@ void RustySystem::PostUpdate(
 
       spawned.push_back(it->first);
       this->agent_map.insert({_entity, it->second});
-      this->reverse_agent_map.insert({it->second, name->Data()});
+      this->agent_name_map.insert({name->Data(), it->second});
+      this->reverse_agent_name_map.insert({it->second, name->Data()});
       return true;
     });
 

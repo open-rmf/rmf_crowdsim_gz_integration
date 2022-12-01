@@ -134,6 +134,7 @@ fn default_eyesight_range() -> f64 {
 type SpawnFn = extern fn(*mut c_void, u64, *const c_char, f64, f64, f64) -> ();
 type MovingFn = extern fn(*mut c_void, u64);
 type IdleFn = extern fn(*mut c_void, u64);
+type GoalReachedFn = extern fn(*mut c_void, u64, u64);
 
 /// Spawn callback
 pub struct Callbacks {
@@ -141,6 +142,7 @@ pub struct Callbacks {
     pub spawn: SpawnFn,
     pub moving: MovingFn,
     pub idle: IdleFn,
+    pub reached: GoalReachedFn,
 }
 
 impl EventListener for Callbacks {
@@ -155,6 +157,10 @@ impl EventListener for Callbacks {
                 }
             }
         }
+    }
+
+    fn goal_reached(&mut self, goal_id: usize, agent: AgentId) {
+        (self.reached)(self.system, agent as u64, goal_id as u64);
     }
 
     fn agent_moving(&mut self, agent: AgentId) {
@@ -191,6 +197,7 @@ pub struct SimulationBinding
     crowd_sim: Simulation<LocationHash2D>,
     agent_map: HashMap<String, usize>,
     robot_map: HashMap<String, Option<usize>>,
+    location_map: HashMap<String, Vec2f>,
 }
 
 #[no_mangle]
@@ -201,6 +208,7 @@ pub extern "C" fn crowdsim_new(
     spawn: SpawnFn,
     moving: MovingFn,
     idle: IdleFn,
+    reached: GoalReachedFn,
 ) -> *mut SimulationBinding
 {
     // TODO(arjo): Calculate size based on rmf_planner
@@ -373,7 +381,7 @@ pub extern "C" fn crowdsim_new(
     }
 
     let event_listener = Arc::new(Mutex::new(
-        Callbacks { system, spawn, moving, idle }));
+        Callbacks { system, spawn, moving, idle, reached }));
     crowd_sim.add_event_listener(event_listener.clone());
 
     Box::into_raw(Box::new(SimulationBinding
@@ -381,6 +389,7 @@ pub extern "C" fn crowdsim_new(
         crowd_sim,
         agent_map,
         robot_map,
+        location_map: locations,
     }))
 }
 
@@ -418,6 +427,43 @@ pub extern "C" fn crowdsim_query_position(
     return Position{x: 0.0, y: 0.0, yaw: 0.0, visible: -1};
 }
 
+#[no_mangle]
+pub extern "C" fn crowdsim_request_goal(
+    ptr: *mut SimulationBinding,
+    agent_id: u64,
+    location: *const c_char,
+) -> i64 {
+    let location = match unsafe { CStr::from_ptr(location) }.to_str() {
+        Ok(s) => s,
+        Err(err) => {
+            println!("Could not interpret location {location:?}: {err:?}");
+            return -1;
+        }
+    };
+
+    let sim_binding = unsafe {
+        assert!(!ptr.is_null());
+        &mut *ptr
+    };
+
+    let location = match sim_binding.location_map.get(location) {
+        Some(location) => location,
+        None => {
+            println!("Could not find requested location [{location}] in the nav graph");
+            return -1;
+        }
+    };
+
+    match sim_binding.crowd_sim.persistent_agent_request(
+        agent_id as usize, *location,
+    ) {
+        Ok(r) => r as i64,
+        Err(err) => {
+            println!("Failed to request goal [{location}]: {err:?}");
+            return -1;
+        }
+    }
+}
 
 #[no_mangle]
 pub extern "C" fn crowdsim_run(

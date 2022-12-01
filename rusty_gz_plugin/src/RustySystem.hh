@@ -20,6 +20,12 @@
 #include <memory>
 #include <gz/sim/System.hh>
 #include "rust_interface.h"
+#include <rclcpp/node.hpp>
+
+#include <chart_sim_msgs/msg/agent_go_to_place.hpp>
+#include <chart_sim_msgs/msg/event_finished.hpp>
+#include <chart_sim_msgs/msg/agent_set_animation.hpp>
+
 namespace rusty
 {
   /// \brief A plugin that validates target identification reports.
@@ -52,8 +58,24 @@ namespace rusty
     public:
       std::unordered_map<gz::sim::Entity, uint64_t> robot_map;
       std::unordered_map<gz::sim::Entity, uint64_t> agent_map;
-      std::unordered_map<uint64_t, std::string> reverse_agent_map;
+      std::unordered_map<std::string, uint64_t> agent_name_map;
+      std::unordered_map<uint64_t, std::string> reverse_agent_name_map;
       std::unordered_map<std::string, uint64_t> spawning_queue;
+
+      // (agent_id -> (goal_id -> request_id))
+      std::unordered_map<uint64_t, std::unordered_map<uint64_t, uint64_t>> pending_goals;
+
+      rclcpp::Node::SharedPtr node;
+
+      using AgentGoToPlace = chart_sim_msgs::msg::AgentGoToPlace;
+      rclcpp::Subscription<AgentGoToPlace>::SharedPtr agent_go_to_place_sub;
+
+      using AgentSetAnimation = chart_sim_msgs::msg::AgentSetAnimation;
+      rclcpp::Publisher<AgentSetAnimation>::SharedPtr agent_set_animation_pub;
+
+      using EventFinished = chart_sim_msgs::msg::EventFinished;
+      rclcpp::Publisher<EventFinished>::SharedPtr event_finished_pub;
+
   };
 }
 

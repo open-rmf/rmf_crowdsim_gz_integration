@@ -42,6 +42,7 @@ struct Position
 typedef void (*spawn_cb_t) (void* system, uint64_t id, const char* model, double x, double y, double yaw);
 typedef void (*moving_cb_t) (void* system, uint64_t id);
 typedef void (*idle_cb_t) (void* system, uint64_t id);
+typedef void (*goal_reached_cb_t) (void* system, uint64_t agent_id, uint64_t goal_id);
 
 /// \brief Create a new crowdsim instance
 /// \param[in] file_path - File path.
@@ -73,6 +74,11 @@ extern "C" Position crowdsim_query_position(
 extern "C" void crowdsim_run(
     simulation_binding_t* t,
     float timestep);
+
+extern "C" int64_t crowdsim_request_goal(
+    simulation_binding_t* t,
+    uint64_t agent_id,
+    const char* location);
 
 /// \brief If the model_name matches the name of a robot that needs to be
 /// updated then get its ID. Otherwise get -1.
