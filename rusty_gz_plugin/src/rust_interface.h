@@ -53,7 +53,8 @@ extern "C" simulation_binding_t * crowdsim_new(
     void* system,
     spawn_cb_t spawn,
     moving_cb_t moving,
-    idle_cb_t idle);
+    idle_cb_t idle,
+    goal_reached_cb_t reached);
 
 /// \brief Free the crowdsim instance
 /// \param[in] t - Simulation instance to destroy.

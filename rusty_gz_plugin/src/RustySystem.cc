@@ -221,7 +221,8 @@ void RustySystem::PreUpdate(const gz::sim::UpdateInfo &_info,
       (void*)(this),
       spawn_agent,
       moving_agent,
-      idle_agent
+      idle_agent,
+      goal_reached
     );
 
     this->InitializeRobotMap(_ecm);
