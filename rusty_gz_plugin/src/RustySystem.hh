@@ -64,6 +64,8 @@ namespace rusty
       rclcpp::Node::SharedPtr node;
 
       bool initialized = false;
+      std::string agents;
+      std::string nav;
 
       using AgentGoToPlace = chart_sim_msgs::msg::AgentGoToPlace;
       rclcpp::Subscription<AgentGoToPlace>::SharedPtr agent_go_to_place_sub;

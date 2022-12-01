@@ -180,11 +180,9 @@ void RustySystem::Configure(const gz::sim::Entity &_entity,
       this->pending_goals[agent_id][goal_id] = msg.cmd_id;
     });
 
-  std::string agents;
-  std::string nav;
   if (_sdf->HasElement("agents"))
   {
-    agents = _sdf->Get<std::string>("agents");
+    this->agents = _sdf->Get<std::string>("agents");
   }
   else
   {
@@ -193,23 +191,13 @@ void RustySystem::Configure(const gz::sim::Entity &_entity,
   }
   if (_sdf->HasElement("nav"))
   {
-    nav = _sdf->Get<std::string>("nav");
+    this->nav = _sdf->Get<std::string>("nav");
   }
   else
   {
     gzerr << "Please specify a path using the <nav> tag!\n";
   }
 
-  // Creates a new crowdsim instance
-  this->crowdsim = crowdsim_new(
-    agents.c_str(),
-    nav.c_str(),
-    (void*)(this),
-    spawn_agent,
-    moving_agent,
-    idle_agent
-  );
-  
   worldName = _ecm.Component<components::Name>(_entity)->Data();
 }
 
@@ -222,7 +210,18 @@ void RustySystem::PreUpdate(const gz::sim::UpdateInfo &_info,
   }
   if (!this->initialized)
   {
+    // Creates a new crowdsim instance
+    this->crowdsim = crowdsim_new(
+      this->agents.c_str(),
+      this->nav.c_str(),
+      (void*)(this),
+      spawn_agent,
+      moving_agent,
+      idle_agent
+    );
+
     this->InitializeRobotMap(_ecm);
+
     this->initialized = true;
   }
   rclcpp::spin_some(this->node);
