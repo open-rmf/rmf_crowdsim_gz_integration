@@ -32,8 +32,7 @@ namespace rusty
   class RustySystem:
     public gz::sim::System,
     public gz::sim::ISystemConfigure,
-    public gz::sim::ISystemPreUpdate,
-    public gz::sim::ISystemPostUpdate
+    public gz::sim::ISystemPreUpdate
   {
     /// \brief Constructor
     public: RustySystem();
@@ -50,9 +49,6 @@ namespace rusty
     public: void PreUpdate(const gz::sim::UpdateInfo &_info,
               gz::sim::EntityComponentManager &_ecm) override;
 
-    public: void PostUpdate(
-              const gz::sim::UpdateInfo &_info,
-              const gz::sim::EntityComponentManager &_ecm) override;
 
     private: simulation_binding_t* crowdsim;
     public:
@@ -67,6 +63,8 @@ namespace rusty
 
       rclcpp::Node::SharedPtr node;
 
+      bool initialized = false;
+
       using AgentGoToPlace = chart_sim_msgs::msg::AgentGoToPlace;
       rclcpp::Subscription<AgentGoToPlace>::SharedPtr agent_go_to_place_sub;
 
@@ -75,6 +73,8 @@ namespace rusty
 
       using EventFinished = chart_sim_msgs::msg::EventFinished;
       rclcpp::Publisher<EventFinished>::SharedPtr event_finished_pub;
+
+      void InitializeRobotMap(const gz::sim::EntityComponentManager &_ecm);
 
   };
 }
