@@ -220,6 +220,11 @@ void RustySystem::PreUpdate(const gz::sim::UpdateInfo &_info,
   {
     return;
   }
+  if (!this->initialized)
+  {
+    this->InitializeRobotMap(_ecm);
+    this->initialized = true;
+  }
   rclcpp::spin_some(this->node);
 
   for (auto [e, robot_id] : this->robot_map)
@@ -274,13 +279,10 @@ void RustySystem::PreUpdate(const gz::sim::UpdateInfo &_info,
     });
 }
 
-void RustySystem::PostUpdate(
-  const gz::sim::UpdateInfo &,
+void RustySystem::InitializeRobotMap(
   const gz::sim::EntityComponentManager &_ecm)
 {
-  // TODO check if EachNew actually works, if it doesn't use
-  // _ecm.EntityByComponents(component::Name("robot_1")) to get the entity in PreUpdate
-  _ecm.EachNew<components::Model, components::Name>(
+  _ecm.Each<components::Model, components::Name>(
     [&](const Entity &_entity, const components::Model*, const components::Name* name) -> bool
     {
       const int64_t robot_id = crowdsim_get_robot_id(
