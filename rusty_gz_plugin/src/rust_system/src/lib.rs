@@ -8,7 +8,7 @@ use rmf_crowdsim::rmf::RMFPlanner;
 use rmf_crowdsim::*;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
-use std::ffi::{c_int, c_float, c_char, CStr};
+use std::ffi::{c_int, c_float, c_char, CStr, c_void};
 use std::fs;
 use serde::Deserialize;
 use rmf_site_format::legacy::nav_graph::NavGraph;
@@ -123,30 +123,23 @@ fn default_eyesight_range() -> f64 {
     5.0
 }
 
-/// List of SourceSink components
-static mut SIM_CONFIG: Vec<CrowdSimConfig> = vec!();
-
 /// Spawn callback
 pub struct SpawnCBIntegration {
-    pub call_back: extern fn(u64, f64, f64) -> ()
+    pub call_back: extern fn(*mut c_void, u64, f64, f64) -> ()
 }
-static mut GZ_SPAWN_CB: Option<SpawnCBIntegration> = None;
 
-struct SimulationModel {
-    crowd_sim: Simulation<LocationHash2D>,
-    //high_level_planner: Arc<StubHighLevelPlan>,
-    //local_planner: Arc<NoLocalPlan>,
-}
-static mut SIM_MODEL: Option<Arc<Mutex<SimulationModel>>> = None;
-
-static mut FILE_PATH: &str = "";
 
 #[repr(C)]
-pub struct Position
-{
+pub struct Position {
     x: c_float,
     y: c_float,
     visible: c_int
+}
+
+impl From<Position> for Vec2f {
+    fn from(value: Position) -> Self {
+        Vec2f::new(value.x as f64, value.y as f64)
+    }
 }
 
 #[repr(C)]
@@ -183,17 +176,17 @@ pub extern "C" fn crowdsim_new(
         }
     };
 
-    let nav_filename = match unsafe { CStr::from_ptr(nav_path) }.to_str() {
+    let nav_filename = root.clone() + match unsafe { CStr::from_ptr(nav_path) }.to_str() {
         Ok(s) => s,
         Err(err) => {
-            println!("Could not interpret nav graph file name {nav_path:?}");
+            println!("Could not interpret nav graph file name {nav_path:?}: {err:?}");
             return std::ptr::null_mut();
         }
     };
-    let nav_f = match std::fs::File::open(nav_filename) {
+    let nav_f = match std::fs::File::open(&nav_filename) {
         Ok(f) => f,
         Err(err) => {
-            println!("Could not open {nav_filename}");
+            println!("Could not open {nav_filename}: {err:?}");
             return std::ptr::null_mut();
         }
     };
@@ -205,17 +198,17 @@ pub extern "C" fn crowdsim_new(
         }
     };
 
-    let agent_filename = match unsafe { CStr::from_ptr(agent_path) }.to_str() {
+    let agent_filename = root + match unsafe { CStr::from_ptr(agent_path) }.to_str() {
         Ok(s) => s,
         Err(err) => {
-            println!("Could not interpret agent file name {agent_path:?}");
+            println!("Could not interpret agent file name {agent_path:?}: {err:?}");
             return std::ptr::null_mut();
         }
     };
-    let agent_f = match std::fs::File::open(agent_filename) {
+    let agent_f = match std::fs::File::open(&agent_filename) {
         Ok(f) => f,
         Err(err) => {
-            println!("Could not open {agent_filename}");
+            println!("Could not open {agent_filename}: {err:?}");
             return std::ptr::null_mut();
         }
     };
@@ -403,6 +396,47 @@ pub extern "C" fn crowdsim_run(
         dt.floor() as u64, ((dt - dt.floor())*1e9) as u32);
     sim_binding.crowd_sim.step(step_size);
 }
+
+#[no_mangle]
+pub extern "C" fn crowdsim_get_robot_id(
+    ptr: *const SimulationBinding,
+    name: *const c_char,
+) -> i64 {
+    let sim_binding = unsafe {
+        assert!(!ptr.is_null());
+        &*ptr
+    };
+    let name = match unsafe { CStr::from_ptr(name) }.to_str() {
+        Ok(s) => s,
+        Err(err) => {
+            println!("Could not interpret robot name {name:?}: {err:?}");
+            return -1;
+        }
+    };
+    match sim_binding.robot_map.get(name) {
+        Some(id) => *id as i64,
+        None => -1,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn crowdsim_update_robot_position(
+    ptr: *mut SimulationBinding,
+    robot_id: u64,
+    position: Position,
+) {
+    let sim_binding = unsafe {
+        assert!(!ptr.is_null());
+        &mut *ptr
+    };
+
+    if let Err(err) = sim_binding.crowd_sim.update_obstacle(
+        robot_id as usize, position.into()
+    ) {
+        println!("Error updating robot {robot_id}: {err}");
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 struct CrowdEventListener {
     correspondence: HashMap<u64, u64>,

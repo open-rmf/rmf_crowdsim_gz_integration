@@ -53,20 +53,23 @@ void createEntityFromStr(const uint64_t id, const std::string& modelStr)
 }
 
 
-extern "C" void spawn_agent(uint64_t id, double x, double y)
+extern "C" void spawn_agent(void* v_system, uint64_t id, const char* model, double x, double y, double yaw)
 {
     auto sphereStr = R"(
     <?xml version="1.0" ?>
     <sdf version='1.7'>
         <include>
             <uri>
-            https://fuel.gazebosim.org/1.0/OpenRobotics/models/Male visitor/1
+            https://fuel.gazebosim.org/1.0/OpenRobotics/models/)"
+            + std::string(model) + R"(/1
             </uri>
             <pose>)" + std::to_string(x) + " " + std::to_string(y) + " " +
-            R"(1.7 0 0 0</pose>
+            R"(0.0 0 0 )" + std::to_string(yaw) + R"(</pose>
         </include>
     </sdf>)";
     createEntityFromStr(id, sphereStr);
+
+    auto* system = static_cast<RustySystem*>(v_system);
 }
 
 RustySystem::RustySystem()
@@ -86,69 +89,33 @@ void RustySystem::Configure(const gz::sim::Entity &_entity,
                             gz::sim::EventManager &_eventMgr)
 {
 
-  std::string path;
-  if (_sdf->HasElement("path"))
+  std::string agents;
+  std::string nav;
+  if (_sdf->HasElement("agents"))
   {
-    path = _sdf->Get<std::string>("path");
+    agents = _sdf->Get<std::string>("agents");
   }
   else
   {
-    gzerr << "Please specify a path using the <path> tag! "
-      <<"As is standard practice this plugin will proceed to crash gazebo\n";
+    gzerr << "Please specify a path using the <agents> tag!\n";
     return;
   }
+  if (_sdf->HasElement("nav"))
+  {
+    nav = _sdf->Get<std::string>("nav");
+  }
+  else
+  {
+    gzerr << "Please specify a path using the <nav> tag!\n";
+  }
+
   // Creates a new crowdsim instance
   this->crowdsim = crowdsim_new(
-    path.c_str(),
+    agents.c_str(),
+    nav.c_str(),
+    (void*)(this),
     spawn_agent
   );
-
-  if (_sdf->HasElement("sources"))
-  {
-    auto sources = _sdf->FindElement("sources");
-    auto sourceDescription = sources->GetFirstElement();
-    if (sourceDescription == nullptr)
-    {
-      gzerr << "Unable to get element description" << std::endl;
-      return;
-    }
-    while (sourceDescription != nullptr)
-    {
-      if (sourceDescription->GetName() == "source_sink")
-      {
-        auto start_pos = sourceDescription->Get<math::Vector3d>("start");
-        Position start {(float)start_pos.X(), (float)start_pos.Y(), 0};
-        std::vector<Position> waypoints;
-        if (!sourceDescription->HasElement("waypoints"))
-        {
-          gzerr << "Please specify waypoints for every source\n";
-          return;
-        }
-        auto rate = sourceDescription->Get<double>("rate"); 
-        auto waypointSdf = sourceDescription->FindElement("waypoints");
-        auto waypointDesc = waypointSdf->GetFirstElement();
-        while (waypointDesc != nullptr)
-        {
-          auto waypoint_pos = waypointDesc->Get<math::Vector3d>();
-          waypoints.push_back(Position{(float)waypoint_pos.X(), (float)waypoint_pos.Y(), 0});
-          waypointDesc = waypointDesc->GetNextElement();
-        }
-        crowdsim_add_source_sink(
-          this->crowdsim,
-          start,
-          waypoints.data(),
-          waypoints.size(),
-          rate
-        );
-
-      }
-      else
-      {
-        gzerr << "Unrecognized element " << sourceDescription->GetName() << "\n";
-      }
-      sourceDescription = sourceDescription->GetNextElement();
-    }
-  }
   
   worldName = _ecm.Component<components::Name>(_entity)->Data();
 }
@@ -160,27 +127,63 @@ void RustySystem::PreUpdate(const gz::sim::UpdateInfo &_info,
   {
     return;
   }
+
+  for (auto [e, robot_id] : this->robot_map)
+  {
+    if (const auto pose = _ecm.Component<components::Pose>(e))
+    {
+      const auto p = pose->Data().Pos();
+      const auto euler = pose->Data().Rot().Euler();
+      crowdsim_update_robot_position(
+            this->crowdsim, robot_id,
+            Position{(float)p.X(), (float)p.Y(), (float)euler[2], 1});
+    }
+    else
+    {
+      gzerr << "Failed to get pose for robot " << robot_id << "\n";
+    }
+  }
+
   crowdsim_run(
     this->crowdsim, std::chrono::duration<float>(_info.dt).count());
-  _ecm.Each<components::Actor, components::Name>(
-    [&](const Entity &_entity, const components::Actor *,
-    const components::Name *_name)->bool
+  _ecm.Each<components::Actor>(
+    [&](const Entity &_entity, const components::Actor *)->bool
     {
-      if (_name->Data().size() > 5 && _name->Data().substr(0,5) == "actor")
-      {
-        auto position = crowdsim_query_position(
-          this->crowdsim,
-          atoi(_name->Data().substr(5, _name->Data().size()).c_str()));
-        if (position.visible < 0)
-        {
-          _ecm.RequestRemoveEntity(_entity, true);
-          return true;
-        }
-        _ecm.Component<components::Pose>(_entity)->Data() = gz::math::Pose3d(position.x, position.y, 0.5, 0, 0, 0);
-        _ecm.SetChanged(_entity, components::Pose::typeId,
-          ComponentState::OneTimeChange);
+      const auto it = this->agent_map.find(_entity);
+      if (it == this->agent_map.end())
+        return true;
 
+      const auto agent_id = it->second;
+      auto position = crowdsim_query_position(this->crowdsim, agent_id);
+      if (position.visible < 0)
+      {
+        _ecm.RequestRemoveEntity(_entity, true);
+        return true;
       }
+
+      _ecm.Component<components::Pose>(_entity)->Data() = gz::math::Pose3d(
+            position.x, position.y, 0.0, 0, 0, position.yaw);
+      _ecm.SetChanged(_entity, components::Pose::typeId,
+                      ComponentState::OneTimeChange);
+      return true;
+    });
+}
+
+void RustySystem::PostUpdate(
+  const gz::sim::UpdateInfo &,
+  const gz::sim::EntityComponentManager &_ecm)
+{
+  _ecm.EachNew<components::Model, components::Name>(
+    [&](const Entity &_entity, const components::Model*, const components::Name* name) -> bool
+    {
+      const int64_t robot_id = crowdsim_get_robot_id(
+            this->crowdsim, name->Data().c_str());
+      if (robot_id < 0)
+      {
+        return true;
+      }
+
+      this->robot_map.insert({_entity, robot_id});
       return true;
     });
 }

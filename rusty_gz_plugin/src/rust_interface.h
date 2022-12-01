@@ -27,9 +27,11 @@ extern "C"{
 struct Position
 {
     /// \brief X position
-    float x;
+    double x;
     /// \brief Y position
-    float y;
+    double y;
+    /// \brief The yaw for the agent
+    double yaw;
     /// \brief Visbility: Used by crowdsim_query_position to return existence
     /// of an object. 0 if ok -1 if object is missing.
     int visible;
@@ -37,13 +39,16 @@ struct Position
 }
 
 /// Callback type for listening to spawn events.
-typedef void (*spawn_cb_t) (uint64_t id, double x, double y);
+typedef void (*spawn_cb_t) (void* system, uint64_t id, const char* model, double x, double y, double yaw);
 
 /// \brief Create a new crowdsim instance
 /// \param[in] file_path - File path.
 /// \param[in] cb - The spawn callback.
 extern "C" simulation_binding_t * crowdsim_new(
-    const char* file_path, spawn_cb_t cb);
+    const char* agents_path,
+    const char* nav_path,
+    void* system,
+    spawn_cb_t cb);
 
 /// \brief Free the crowdsim instance
 /// \param[in] t - Simulation instance to destroy.
@@ -78,3 +83,15 @@ extern "C" Position crowdsim_query_position(
 extern "C" void crowdsim_run(
     simulation_binding_t* t,
     float timestep);
+
+/// \brief If the model_name matches the name of a robot that needs to be
+/// updated then get its ID. Otherwise get -1.
+extern "C" int64_t crowdsim_get_robot_id(
+    const simulation_binding_t* t,
+    const char* moel_name);
+
+/// Update the position of a robot
+extern "C" void crowdsim_update_robot_position(
+    simulation_binding_t* t,
+    uint64_t robot_id,
+    Position position);

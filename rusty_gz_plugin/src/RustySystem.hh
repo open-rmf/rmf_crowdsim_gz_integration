@@ -26,7 +26,8 @@ namespace rusty
   class RustySystem:
     public gz::sim::System,
     public gz::sim::ISystemConfigure,
-    public gz::sim::ISystemPreUpdate
+    public gz::sim::ISystemPreUpdate,
+    public gz::sim::ISystemPostUpdate
   {
     /// \brief Constructor
     public: RustySystem();
@@ -43,7 +44,13 @@ namespace rusty
     public: void PreUpdate(const gz::sim::UpdateInfo &_info,
               gz::sim::EntityComponentManager &_ecm) override;
 
+    public: void PostUpdate(
+              const gz::sim::UpdateInfo &_info,
+              const gz::sim::EntityComponentManager &_ecm) override = 0;
+
     private: simulation_binding_t* crowdsim;
+    public: std::unordered_map<gz::sim::Entity, uint64_t> robot_map;
+    public: std::unordered_map<gz::sim::Entity, uint64_t> agent_map;
   };
 }
 
