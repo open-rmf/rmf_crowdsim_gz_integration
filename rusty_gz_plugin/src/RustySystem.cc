@@ -114,15 +114,15 @@ extern "C" void goal_reached(void* v_system, uint64_t agent_id, uint64_t goal_id
   const auto a_it = system->pending_goals.find(agent_id);
   if (a_it == system->pending_goals.end())
   {
-    gzerr << "Could not find pending goals for agent [" << agent_id << "]\n";
+//    gzerr << "Could not find pending goals for agent [" << agent_id << "]\n";
     return;
   }
 
   const auto g_it = a_it->second.find(goal_id);
   if (g_it == a_it->second.end())
   {
-    gzerr << "Could not find a command_id for goal [" << goal_id << "] of agent ["
-          << agent_id << "]\n";
+//    gzerr << "Could not find a command_id for goal [" << goal_id << "] of agent ["
+//          << agent_id << "]\n";
     return;
   }
 
