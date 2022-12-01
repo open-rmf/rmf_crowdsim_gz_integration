@@ -1064,7 +1064,7 @@ dependencies = [
 [[package]]
 name = "rmf_crowdsim"
 version = "0.1.0"
-source = "git+https://github.com/open-rmf/rmf_crowdsim.git?branch=controller_types#6bae7d491bac689afcc9fc1be5a44f082ab238c1"
+source = "git+https://github.com/open-rmf/rmf_crowdsim.git?branch=controller_types#3ac75134a7ed65e145dda16245ab53b38fce5924"
 dependencies = [
  "image",
  "imageproc",
@@ -1081,7 +1081,7 @@ dependencies = [
 [[package]]
 name = "rmf_site_format"
 version = "0.0.1"
-source = "git+https://github.com/open-rmf/rmf_site?branch=export_occupancy#6afa508edd9eb104d8ac1b13d1bb61641a6e9a9d"
+source = "git+https://github.com/open-rmf/rmf_site?branch=export_occupancy#b112d57e5b19de2606b752b98493225f5328267e"
 dependencies = [
  "glam",
  "optimization_engine",
@@ -1327,9 +1327,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-macros"
-version = "1.8.0"
+version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9724f9a975fb987ef7a3cd9be0350edcbe130698af5b8f7a631e23d42d052484"
+checksum = "d266c00fde287f55d3f1c3e96c500c362a2b8c695076ec180f27918820bc6df8"
 dependencies = [
  "proc-macro2",
  "quote",

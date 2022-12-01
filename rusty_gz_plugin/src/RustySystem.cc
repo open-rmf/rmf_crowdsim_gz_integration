@@ -24,16 +24,14 @@ std::string worldName;
 
 gz::transport::Node node;
 
-std::unordered_map<uint64_t, uint64_t> correspondance;
-
-void createEntityFromStr(const uint64_t id, const std::string& modelStr)
+void createEntityFromStr(const std::string& name, const std::string& modelStr)
 {
 //! [call service create sphere]
   bool result;
   gz::msgs::EntityFactory req;
   gz::msgs::Boolean res;
   req.set_sdf(modelStr);
-  req.set_name("actor"+std::to_string(id));
+  req.set_name(name);
 
   bool executed = node.Request("/world/"+ worldName +"/create",
             req, 10000, res, result);
@@ -53,9 +51,10 @@ void createEntityFromStr(const uint64_t id, const std::string& modelStr)
 }
 
 
-extern "C" void spawn_agent(void* v_system, uint64_t id, const char* model, double x, double y, double yaw)
+extern "C" void spawn_agent(
+    void* v_system, uint64_t id, const char* model, double x, double y, double yaw)
 {
-    auto sphereStr = R"(
+    auto sdf = R"(
     <?xml version="1.0" ?>
     <sdf version='1.7'>
         <include>
@@ -67,9 +66,11 @@ extern "C" void spawn_agent(void* v_system, uint64_t id, const char* model, doub
             R"(0.0 0 0 )" + std::to_string(yaw) + R"(</pose>
         </include>
     </sdf>)";
-    createEntityFromStr(id, sphereStr);
+    auto name = "generated_agent_" + std::to_string(id);
+    createEntityFromStr(name, sdf);
 
     auto* system = static_cast<RustySystem*>(v_system);
+    system->spawning_queue.insert({name, id});
 }
 
 RustySystem::RustySystem()
@@ -86,9 +87,8 @@ RustySystem::~RustySystem()
 void RustySystem::Configure(const gz::sim::Entity &_entity,
                             const std::shared_ptr<const sdf::Element> &_sdf,
                             gz::sim::EntityComponentManager &_ecm,
-                            gz::sim::EventManager &_eventMgr)
+                            gz::sim::EventManager &)
 {
-
   std::string agents;
   std::string nav;
   if (_sdf->HasElement("agents"))
@@ -145,7 +145,7 @@ void RustySystem::PreUpdate(const gz::sim::UpdateInfo &_info,
   }
 
   crowdsim_run(
-    this->crowdsim, std::chrono::duration<float>(_info.dt).count());
+    this->crowdsim, std::chrono::duration<double>(_info.dt).count());
   _ecm.Each<components::Actor>(
     [&](const Entity &_entity, const components::Actor *)->bool
     {
@@ -186,6 +186,24 @@ void RustySystem::PostUpdate(
       this->robot_map.insert({_entity, robot_id});
       return true;
     });
+
+  std::vector<std::string> spawned;
+  _ecm.EachNew<components::Actor, components::Name>(
+    [&](const Entity &_entity, const components::Actor*, const components::Name* name) -> bool
+    {
+      const auto it = this->spawning_queue.find(name->Data());
+      if (it == this->spawning_queue.end())
+        return true;
+
+      spawned.push_back(it->first);
+      this->agent_map.insert({_entity, it->second});
+      return true;
+    });
+
+  for (const auto& s : spawned)
+  {
+    this->spawning_queue.erase(s);
+  }
 }
 
 GZ_ADD_PLUGIN(rusty::RustySystem,

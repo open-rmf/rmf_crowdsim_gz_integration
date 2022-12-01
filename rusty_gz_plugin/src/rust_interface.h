@@ -54,20 +54,6 @@ extern "C" simulation_binding_t * crowdsim_new(
 /// \param[in] t - Simulation instance to destroy.
 extern "C" void crowdsim_free(simulation_binding_t *t);
 
-/// \brief Adds a source and a sink
-/// \param crowdsim_instance The instance to add the source to
-/// \param start The start point.
-/// \param waypoints The waypoints.
-/// \param num_waypoints Number of waypoints.
-/// \param rate Rate of spawning new rustlings.
-extern "C" void crowdsim_add_source_sink(
-    simulation_binding_t *crowdsim_instance,
-    Position start,
-    Position* waypoints,
-    uint64_t num_waypoints,
-    double rate
-    );
-
 /// \brief Query position at current simulation time step.
 /// \param[in] t - Simulation instance
 /// \param[in] id - The agent in question's id
@@ -87,8 +73,8 @@ extern "C" void crowdsim_run(
 /// \brief If the model_name matches the name of a robot that needs to be
 /// updated then get its ID. Otherwise get -1.
 extern "C" int64_t crowdsim_get_robot_id(
-    const simulation_binding_t* t,
-    const char* moel_name);
+    simulation_binding_t* t,
+    const char* model_name);
 
 /// Update the position of a robot
 extern "C" void crowdsim_update_robot_position(

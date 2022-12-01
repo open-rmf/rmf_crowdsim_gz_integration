@@ -8,7 +8,7 @@ use rmf_crowdsim::rmf::RMFPlanner;
 use rmf_crowdsim::*;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
-use std::ffi::{c_int, c_float, c_char, CStr, c_void};
+use std::ffi::{c_int, c_double, c_char, CStr, c_void};
 use std::fs;
 use serde::Deserialize;
 use rmf_site_format::legacy::nav_graph::NavGraph;
@@ -32,6 +32,8 @@ pub struct CrowdSimConfig {
 pub struct PersistentConfig {
     /// String name of starting location
     start: String,
+    #[serde(default = "default_orientation")]
+    orientation: f64,
     /// Name of model to use for this agent
     model: String,
     // TODO(MXG): Consider allowing the goal_radius to change for each request
@@ -44,6 +46,8 @@ pub struct PersistentConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct SourceSinkConfig {
     source: String,
+    #[serde(default = "default_orientation")]
+    orientation: f64,
     model: String,
     waypoints: Vec<String>,
     rate: f64,
@@ -95,6 +99,10 @@ impl Default for AvoidanceConfig {
     }
 }
 
+fn default_orientation() -> f64 {
+    0.0
+}
+
 fn default_agent_radius() -> f64 {
     0.1
 }
@@ -124,16 +132,18 @@ fn default_eyesight_range() -> f64 {
 }
 
 /// Spawn callback
-pub struct SpawnCBIntegration {
-    pub call_back: extern fn(*mut c_void, u64, f64, f64) -> ()
+pub struct Callbacks {
+    pub system: *mut c_void,
+    pub spawn: extern fn(*mut c_void, u64, f64, f64, f64) -> ()
 }
 
 
 #[repr(C)]
 pub struct Position {
-    x: c_float,
-    y: c_float,
-    visible: c_int
+    x: c_double,
+    y: c_double,
+    yaw: c_double,
+    visible: c_int,
 }
 
 impl From<Position> for Vec2f {
@@ -147,15 +157,16 @@ pub struct SimulationBinding
 {
     crowd_sim: Simulation<LocationHash2D>,
     agent_map: HashMap<String, usize>,
-    robot_map: HashMap<String, usize>,
-    spawn_callback: SpawnCBIntegration,
+    robot_map: HashMap<String, Option<usize>>,
+    spawn_callback: Callbacks,
 }
 
 #[no_mangle]
 pub extern "C" fn crowdsim_new(
     agent_path: *const c_char,
     nav_path: *const c_char,
-    spawn_cb: extern fn (u64, f64, f64) -> ()
+    system: *mut c_void,
+    spawn: extern fn (*mut c_void, u64, f64, f64, f64) -> ()
 ) -> *mut SimulationBinding
 {
     // TODO(arjo): Calculate size based on rmf_planner
@@ -282,6 +293,7 @@ pub extern "C" fn crowdsim_new(
 
         crowd_sim.add_source_sink(Arc::new(SourceSink {
             source,
+            orientation: ss.orientation,
             waypoints,
             radius_sink: ss.goal_radius,
             crowd_generator: Arc::new(PoissonCrowd::new(ss.rate)),
@@ -308,7 +320,8 @@ pub extern "C" fn crowdsim_new(
         let local_planner = Arc::new(Mutex::new(Zanlungo::from(&agent.avoidance)));
 
         let id = match crowd_sim.add_persistent_agent(
-            start, agent.goal_radius, high_level_planner, local_planner, agent.avoidance.eyesight_range
+            start, agent.orientation, agent.goal_radius,
+            high_level_planner, local_planner, agent.avoidance.eyesight_range,
         ) {
             Ok(id) => id,
             Err(err) => {
@@ -319,21 +332,13 @@ pub extern "C" fn crowdsim_new(
         agent_map.insert(name.clone(), id);
     }
 
-    let mut robot_map: HashMap<String, usize> = HashMap::new();
+    let mut robot_map: HashMap<String, Option<AgentId>> = HashMap::new();
     for name in &sim_config.robots {
-        let id = match crowd_sim.add_obstacle(Vec2f::zeros()) {
-            Ok(id) => id,
-            Err(err) => {
-                println!("Failed to add obstacle: {err:?}");
-                return std::ptr::null_mut();
-            }
-        };
-        robot_map.insert(name.clone(), id);
+        robot_map.insert(name.clone(), None);
     }
 
     let event_listener = Arc::new(Mutex::new(
-        CrowdEventListener::new(SpawnCBIntegration {
-            call_back: spawn_cb})));
+        CrowdEventListener::new(Callbacks { system, spawn })));
     crowd_sim.add_event_listener(event_listener.clone());
 
     Box::into_raw(Box::new(SimulationBinding
@@ -341,7 +346,7 @@ pub extern "C" fn crowdsim_new(
         crowd_sim,
         agent_map,
         robot_map,
-        spawn_callback: SpawnCBIntegration { call_back: spawn_cb },
+        spawn_callback: Callbacks { system, spawn },
     }))
 }
 
@@ -370,19 +375,20 @@ pub extern "C" fn crowdsim_query_position(
     let agent = sim_binding.crowd_sim.agents.get(&(agent_id as usize));
     if let Some(agent) = agent {
         return Position{
-            x: agent.position.x as f32,
-            y: agent.position.y as f32,
+            x: agent.position.x,
+            y: agent.position.y,
+            yaw: agent.orientation,
             visible: 1
         };
     }
-    return Position{x: 0.0, y: 0.0, visible: -1};
+    return Position{x: 0.0, y: 0.0, yaw: 0.0, visible: -1};
 }
 
 
 #[no_mangle]
 pub extern "C" fn crowdsim_run(
     ptr: *mut SimulationBinding,
-    dt: f32)
+    dt: c_double)
 {
     let mut sim_binding = unsafe {
         assert!(!ptr.is_null());
@@ -399,12 +405,12 @@ pub extern "C" fn crowdsim_run(
 
 #[no_mangle]
 pub extern "C" fn crowdsim_get_robot_id(
-    ptr: *const SimulationBinding,
+    ptr: *mut SimulationBinding,
     name: *const c_char,
 ) -> i64 {
     let sim_binding = unsafe {
         assert!(!ptr.is_null());
-        &*ptr
+        &mut *ptr
     };
     let name = match unsafe { CStr::from_ptr(name) }.to_str() {
         Ok(s) => s,
@@ -414,7 +420,22 @@ pub extern "C" fn crowdsim_get_robot_id(
         }
     };
     match sim_binding.robot_map.get(name) {
-        Some(id) => *id as i64,
+        Some(opt_id) => {
+            match opt_id {
+                Some(id) => *id as i64,
+                None => {
+                    let id = match sim_binding.crowd_sim.add_obstacle(Vec2f::zeros(), 0.0) {
+                        Ok(id) => id,
+                        Err(err) => {
+                            println!("Failed to add obstacle: {err:?}");
+                            return -1;
+                        }
+                    };
+                    sim_binding.robot_map.insert(name.to_owned(), Some(id));
+                    id as i64
+                }
+            }
+        }
         None => -1,
     }
 }
@@ -439,22 +460,18 @@ pub extern "C" fn crowdsim_update_robot_position(
 
 ////////////////////////////////////////////////////////////////////////////////
 struct CrowdEventListener {
-    correspondence: HashMap<u64, u64>,
-    spawn_callback: SpawnCBIntegration
+    callbacks: Callbacks
 }
 
 impl CrowdEventListener {
-    pub fn new(spawn_callback: SpawnCBIntegration) -> Self {
-        Self{
-            correspondence: HashMap::new(),
-            spawn_callback
-        }
+    pub fn new(callbacks: Callbacks) -> Self {
+        Self{ callbacks }
     }
 }
 
 impl EventListener for CrowdEventListener {
-    fn agent_spawned(&mut self, position: Vec2f, agent: AgentId) {
-        (self.spawn_callback.call_back)(agent as u64, position.x, position.y);
+    fn agent_spawned(&mut self, position: Vec2f, yaw: f64, agent: AgentId) {
+        (self.callbacks.spawn)(self.callbacks.system, agent as u64, position.x, position.y, yaw);
     }
 
     /// Called each time an agent is destroyed
