@@ -200,6 +200,40 @@ pub struct SimulationBinding
     location_map: HashMap<String, Vec2f>,
 }
 
+// Utility function to iterate over paths in the environment variable and find a valid file
+// TODO should really use PathBuf for this
+fn open_file(
+    filename: &str,
+) -> Option<std::fs::File>
+{
+    let roots: Vec<String> = match std::env::var(RESOURCE_ENVIRONMENT_VARIABLE) {
+        Ok(env_var) => {
+            let mut res = Vec::<String>::new();
+            for path in env_var.split(":") {
+                res.push(String::from(path));
+            }
+            res
+        }
+        Err(err) => {
+            println!("Could not get {RESOURCE_ENVIRONMENT_VARIABLE}: {err:?}");
+            return None;
+        }
+    };
+
+    for root in roots {
+        let concatenated = String::from(root) + filename;
+        match std::fs::File::open(concatenated) {
+            Ok(f) => {
+                return Some(f);
+            }
+            Err(_) => {
+                continue;
+            }
+        };
+    }
+    None
+}
+
 #[no_mangle]
 pub extern "C" fn crowdsim_new(
     agent_path: *const c_char,
@@ -221,25 +255,17 @@ pub extern "C" fn crowdsim_new(
 
     let mut crowd_sim = Simulation::new(stub_spatial);
 
-    let root = match std::env::var(RESOURCE_ENVIRONMENT_VARIABLE) {
-        Ok(s) => s,
-        Err(err) => {
-            println!("Could not get {RESOURCE_ENVIRONMENT_VARIABLE}: {err:?}");
-            return std::ptr::null_mut();
-        }
-    };
-
-    let nav_filename = root.clone() + match unsafe { CStr::from_ptr(nav_path) }.to_str() {
+    let nav_filename = match unsafe { CStr::from_ptr(nav_path) }.to_str() {
         Ok(s) => s,
         Err(err) => {
             println!("Could not interpret nav graph file name {nav_path:?}: {err:?}");
             return std::ptr::null_mut();
         }
     };
-    let nav_f = match std::fs::File::open(&nav_filename) {
-        Ok(f) => f,
-        Err(err) => {
-            println!("Could not open {nav_filename}: {err:?}");
+    let nav_f = match open_file(&nav_filename) {
+        Some(f) => f,
+        None => {
+            println!("Could not open {nav_filename}, file not found");
             return std::ptr::null_mut();
         }
     };
@@ -251,17 +277,18 @@ pub extern "C" fn crowdsim_new(
         }
     };
 
-    let agent_filename = root + match unsafe { CStr::from_ptr(agent_path) }.to_str() {
+    let agent_filename = match unsafe { CStr::from_ptr(agent_path) }.to_str() {
         Ok(s) => s,
         Err(err) => {
             println!("Could not interpret agent file name {agent_path:?}: {err:?}");
             return std::ptr::null_mut();
         }
     };
-    let agent_f = match std::fs::File::open(&agent_filename) {
-        Ok(f) => f,
-        Err(err) => {
-            println!("Could not open {agent_filename}: {err:?}");
+
+    let agent_f = match open_file(&agent_filename) {
+        Some(f) => f,
+        None => {
+            println!("Could not open {agent_filename}: file not found");
             return std::ptr::null_mut();
         }
     };
