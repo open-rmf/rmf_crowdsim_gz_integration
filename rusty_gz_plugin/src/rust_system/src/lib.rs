@@ -131,7 +131,7 @@ fn default_eyesight_range() -> f64 {
     5.0
 }
 
-type SpawnFn = extern fn(*mut c_void, u64, *const c_char, f64, f64, f64) -> ();
+type SpawnFn = extern fn(*mut c_void, u64, *const c_char, *const c_char, f64, f64, f64) -> ();
 type MovingFn = extern fn(*mut c_void, u64);
 type IdleFn = extern fn(*mut c_void, u64);
 type GoalReachedFn = extern fn(*mut c_void, u64, u64);
@@ -146,16 +146,23 @@ pub struct Callbacks {
 }
 
 impl EventListener for Callbacks {
-    fn agent_spawned(&mut self, position: Vec2f, yaw: f64, model: &String, agent: AgentId) {
+    fn agent_spawned(&mut self, position: Vec2f, yaw: f64, name: String, model: &String, agent: AgentId) {
         unsafe {
-            match CString::new(model.clone()) {
-                Ok(model) => {
-                    (self.spawn)(self.system, agent as u64, model.as_ptr(), position.x, position.y, yaw);
+            let name_c_str = match CString::new(name) {
+                Ok(name) => name,
+                Err(err) => {
+                    println!("Unable to convert name while triggering agent_spawned: {err:?}");
+                    return;
                 }
+            };
+            let model_c_str = match CString::new(model.clone()) {
+                Ok(model) => model,
                 Err(err) => {
                     println!("Unable to convert model while triggering agent_spawned: {err:?}");
+                    return;
                 }
-            }
+            };
+            (self.spawn)(self.system, agent as u64, name_c_str.as_ptr(), model_c_str.as_ptr(), position.x, position.y, yaw);
         }
     }
 
@@ -332,7 +339,7 @@ pub extern "C" fn crowdsim_new(
         })
         .collect();
 
-    for ss in &sim_config.source_sinks {
+    for (i, ss) in sim_config.source_sinks.iter().enumerate() {
         let high_level_planner = Arc::new(Mutex::new(
             RMFPlanner::from_occupancy(&occupancy, ss.avoidance.agent_radius)
         ));
@@ -360,9 +367,12 @@ pub extern "C" fn crowdsim_new(
             waypoints.push(*wp);
         }
 
+        // TODO(MXG): Let users configure the prefix
+        let prefix = "source_sink_".to_owned() + &i.to_string() + "_";
         crowd_sim.add_source_sink(Arc::new(SourceSink {
             source,
             orientation: ss.orientation,
+            prefix: prefix.to_owned(),
             model: ss.model.clone(),
             waypoints,
             radius_sink: ss.goal_radius,
@@ -390,7 +400,7 @@ pub extern "C" fn crowdsim_new(
         let local_planner = Arc::new(Mutex::new(Zanlungo::from(&agent.avoidance)));
 
         let id = match crowd_sim.add_persistent_agent(
-            start, agent.orientation, &agent.model, agent.goal_radius,
+            start, agent.orientation, name, &agent.model, agent.goal_radius,
             high_level_planner, local_planner, agent.avoidance.eyesight_range,
         ) {
             Ok(id) => id,

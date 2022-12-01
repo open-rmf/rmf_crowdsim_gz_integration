@@ -1064,7 +1064,7 @@ dependencies = [
 [[package]]
 name = "rmf_crowdsim"
 version = "0.1.0"
-source = "git+https://github.com/open-rmf/rmf_crowdsim.git?branch=controller_types#e679c6679ce1b92d6ae61131077004ba95091c72"
+source = "git+https://github.com/open-rmf/rmf_crowdsim.git?branch=controller_types#c57bc151f7bf952544abb773cc9e7bfcb5997613"
 dependencies = [
  "image",
  "imageproc",
@@ -1081,7 +1081,7 @@ dependencies = [
 [[package]]
 name = "rmf_site_format"
 version = "0.0.1"
-source = "git+https://github.com/open-rmf/rmf_site?branch=export_occupancy#93df56ab8c5760a6b094fd2d6e3a1712b7830e29"
+source = "git+https://github.com/open-rmf/rmf_site?branch=export_occupancy#894b76505b5d93043de25dfa9115f4d9ce81fe31"
 dependencies = [
  "glam",
  "optimization_engine",

@@ -56,7 +56,7 @@ void createEntityFromStr(const std::string& name, const std::string& modelStr)
 
 
 extern "C" void spawn_agent(
-    void* v_system, uint64_t id, const char* model, double x, double y, double yaw)
+    void* v_system, uint64_t id, const char* c_name, const char* model, double x, double y, double yaw)
 {
     auto sdf = R"(
     <?xml version="1.0" ?>
@@ -70,7 +70,7 @@ extern "C" void spawn_agent(
             R"(0.0 0 0 )" + std::to_string(yaw) + R"(</pose>
         </include>
     </sdf>)";
-    auto name = "generated_agent_" + std::to_string(id);
+    auto name = std::string(c_name);
     createEntityFromStr(name, sdf);
 
     auto* system = static_cast<RustySystem*>(v_system);
