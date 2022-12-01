@@ -259,12 +259,16 @@ void RustySystem::PreUpdate(const gz::sim::UpdateInfo &_info,
         return true;
       }
 
-      enableComponent<components::AnimationTime>(_ecm, _entity);
-      enableComponent<components::AnimationName>(_ecm, _entity);
-      enableComponent<components::TrajectoryPose>(_ecm, _entity);
-      _ecm.Component<components::AnimationName>(_entity)->Data() = "walk";
-      _ecm.SetChanged(_entity, components::AnimationName::typeId,
-                      ComponentState::OneTimeChange);
+      if (!_ecm.EntityHasComponentType(_entity, components::AnimationName().TypeId()))
+      {
+        // Just created, add components and set them to defaults
+        enableComponent<components::AnimationTime>(_ecm, _entity);
+        enableComponent<components::AnimationName>(_ecm, _entity);
+        enableComponent<components::TrajectoryPose>(_ecm, _entity);
+        _ecm.Component<components::AnimationName>(_entity)->Data() = "walk";
+        _ecm.SetChanged(_entity, components::AnimationName::typeId,
+                        ComponentState::OneTimeChange);
+      }
 
       // Make sure we have all the components we need
       _ecm.Component<components::TrajectoryPose>(_entity)->Data() = gz::math::Pose3d(
