@@ -58,6 +58,8 @@ void createEntityFromStr(const std::string& name, const std::string& modelStr)
 extern "C" void spawn_agent(
     void* v_system, uint64_t id, const char* c_name, const char* model, double x, double y, double yaw)
 {
+    // Note, we set pose to 0 because the pose is set through the TrajectoryPose component
+    // _relative_ to the initial pose, the TrajectoryPose component will be set on first iteration
     auto sdf = R"(
     <?xml version="1.0" ?>
     <sdf version='1.7'>
@@ -66,8 +68,7 @@ extern "C" void spawn_agent(
             model://)" + std::string(model) +
             R"(
             </uri>
-            <pose>)" + std::to_string(x) + " " + std::to_string(y) + " " +
-            R"(0.0 0 0 )" + std::to_string(yaw) + R"(</pose>
+            <pose>0 0 0 0 0 )" + std::to_string(yaw) + R"(</pose>
         </include>
     </sdf>)";
     auto name = std::string(c_name);
