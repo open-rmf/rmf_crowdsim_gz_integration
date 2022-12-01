@@ -157,22 +157,22 @@ void RustySystem::Configure(const gz::sim::Entity &_entity,
         "agent_set_animation", transient_qos);
 
   this->agent_go_to_place_sub = this->node->create_subscription<AgentGoToPlace>(
-      "agent_goto", transient_qos, [&](const std::shared_ptr<AgentGoToPlace>& msg)
+      "agent_goto", transient_qos, [&](const AgentGoToPlace& msg)
     {
-      const auto it = this->agent_name_map.find(msg->agent);
+      const auto it = this->agent_name_map.find(msg.agent);
       if (it == this->agent_name_map.end())
       {
-        gzerr << "Cannot find agent named [" << msg->agent << "]\n";
+        gzerr << "Cannot find agent named [" << msg.agent << "]\n";
         return;
       }
 
       const auto agent_id = it->second;
       const auto goal_id = crowdsim_request_goal(
-            this->crowdsim, agent_id, msg->place.c_str());
+            this->crowdsim, agent_id, msg.place.c_str());
       if (goal_id < 0)
         return;
 
-      this->pending_goals[agent_id][goal_id] = msg->cmd_id;
+      this->pending_goals[agent_id][goal_id] = msg.cmd_id;
     });
 
   std::string agents;
