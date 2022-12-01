@@ -162,6 +162,9 @@ void RustySystem::Configure(const gz::sim::Entity &_entity,
   this->agent_set_animation_pub = this->node->create_publisher<AgentSetAnimation>(
         "agent_set_animation", transient_qos);
 
+  this->event_finished_pub = this->node->create_publisher<EventFinished>(
+        "event_finished", transient_qos);
+
   this->agent_go_to_place_sub = this->node->create_subscription<AgentGoToPlace>(
       "agent_goto", transient_qos, [&](const AgentGoToPlace& msg)
     {
