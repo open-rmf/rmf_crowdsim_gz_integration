@@ -165,6 +165,24 @@ void RustySystem::Configure(const gz::sim::Entity &_entity,
   this->event_finished_pub = this->node->create_publisher<EventFinished>(
         "event_finished", transient_qos);
 
+  this->agent_go_to_place_sub = this->node->create_subscription<AgentGoToPlace>(
+      "agent_goto", transient_qos, [&](const AgentGoToPlace& msg)
+    {
+      const auto it = this->agent_name_map.find(msg.agent);
+      if (it == this->agent_name_map.end())
+      {
+        gzerr << "Cannot find agent named [" << msg.agent << "]\n";
+        return;
+      }
+
+      const auto agent_id = it->second;
+      const auto goal_id = crowdsim_request_goal(
+            this->crowdsim, agent_id, msg.place.c_str());
+      if (goal_id < 0)
+        return;
+
+      this->pending_goals[agent_id][goal_id] = msg.cmd_id;
+    });
 
   if (_sdf->HasElement("agents"))
   {
@@ -205,31 +223,6 @@ void RustySystem::PreUpdate(const gz::sim::UpdateInfo &_info,
       moving_agent,
       idle_agent
     );
-
-    const auto transient_qos = rclcpp::SystemDefaultsQoS()
-          .keep_last(1)
-          .reliable()
-          .transient_local();
-
-    this->agent_go_to_place_sub = this->node->create_subscription<AgentGoToPlace>(
-        "agent_goto", transient_qos, [&](const AgentGoToPlace& msg)
-      {
-        std::cout << "Received request for agent " << msg.agent << " for " << msg.place << std::endl;
-        const auto it = this->agent_name_map.find(msg.agent);
-        if (it == this->agent_name_map.end())
-        {
-          gzerr << "Cannot find agent named [" << msg.agent << "]\n";
-          return;
-        }
-
-        const auto agent_id = it->second;
-        const auto goal_id = crowdsim_request_goal(
-              this->crowdsim, agent_id, msg.place.c_str());
-        if (goal_id < 0)
-          return;
-
-        this->pending_goals[agent_id][goal_id] = msg.cmd_id;
-      });
 
     this->InitializeRobotMap(_ecm);
 
