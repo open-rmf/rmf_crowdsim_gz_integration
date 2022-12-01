@@ -39,7 +39,7 @@ struct Position
 }
 
 /// Callback type for listening to spawn events.
-typedef void (*spawn_cb_t) (void* system, uint64_t id, const char* model, double x, double y, double yaw);
+typedef void (*spawn_cb_t) (void* system, uint64_t id, const char* name, const char* model, double x, double y, double yaw);
 typedef void (*moving_cb_t) (void* system, uint64_t id);
 typedef void (*idle_cb_t) (void* system, uint64_t id);
 typedef void (*goal_reached_cb_t) (void* system, uint64_t agent_id, uint64_t goal_id);
