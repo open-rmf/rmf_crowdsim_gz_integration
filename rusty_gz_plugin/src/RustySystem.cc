@@ -10,6 +10,7 @@
 #include <gz/sim/components/Actor.hh>
 #include <gz/sim/components/Pose.hh>
 #include <gz/sim/components/Static.hh>
+#include <gz/sim/Util.hh>
 
 #include <gz/transport/Node.hh>
 
@@ -60,8 +61,8 @@ extern "C" void spawn_agent(
     <sdf version='1.7'>
         <include>
             <uri>
-            https://fuel.gazebosim.org/1.0/OpenRobotics/models/)"
-            + std::string(model) + R"(/1
+            model://)" + std::string(model) +
+            R"(
             </uri>
             <pose>)" + std::to_string(x) + " " + std::to_string(y) + " " +
             R"(0.0 0 0 )" + std::to_string(yaw) + R"(</pose>
@@ -236,11 +237,11 @@ void RustySystem::PreUpdate(const gz::sim::UpdateInfo &_info,
 
   crowdsim_run(
     this->crowdsim, std::chrono::duration<double>(_info.dt).count());
-  _ecm.Each<components::Actor>(
-    [&](const Entity &_entity, const components::Actor *)->bool
+  _ecm.Each<components::Actor, components::Name>(
+    [&](const Entity &_entity, const components::Actor *, components::Name *name)->bool
     {
-      const auto it = this->agent_map.find(_entity);
-      if (it == this->agent_map.end())
+      const auto it = this->spawning_queue.find(name->Data());
+      if (it == this->spawning_queue.end())
         return true;
 
       const auto agent_id = it->second;
@@ -251,10 +252,21 @@ void RustySystem::PreUpdate(const gz::sim::UpdateInfo &_info,
         return true;
       }
 
-      _ecm.Component<components::Pose>(_entity)->Data() = gz::math::Pose3d(
-            position.x, position.y, 0.0, 0, 0, position.yaw);
-      _ecm.SetChanged(_entity, components::Pose::typeId,
+      enableComponent<components::AnimationTime>(_ecm, _entity);
+      enableComponent<components::AnimationName>(_ecm, _entity);
+      enableComponent<components::TrajectoryPose>(_ecm, _entity);
+      _ecm.Component<components::AnimationName>(_entity)->Data() = "walk";
+      _ecm.SetChanged(_entity, components::AnimationName::typeId,
                       ComponentState::OneTimeChange);
+
+      // Make sure we have all the components we need
+      _ecm.Component<components::TrajectoryPose>(_entity)->Data() = gz::math::Pose3d(
+            position.x, position.y, 0.0, 0, 0, position.yaw);
+      _ecm.Component<components::AnimationTime>(_entity)->Data() += _info.dt;
+      _ecm.SetChanged(_entity, components::TrajectoryPose::typeId,
+                      ComponentState::PeriodicChange);
+      _ecm.SetChanged(_entity, components::AnimationTime::typeId,
+                      ComponentState::PeriodicChange);
       return true;
     });
 }
@@ -263,6 +275,8 @@ void RustySystem::PostUpdate(
   const gz::sim::UpdateInfo &,
   const gz::sim::EntityComponentManager &_ecm)
 {
+  // TODO check if EachNew actually works, if it doesn't use
+  // _ecm.EntityByComponents(component::Name("robot_1")) to get the entity in PreUpdate
   _ecm.EachNew<components::Model, components::Name>(
     [&](const Entity &_entity, const components::Model*, const components::Name* name) -> bool
     {
@@ -276,26 +290,6 @@ void RustySystem::PostUpdate(
       this->robot_map.insert({_entity, robot_id});
       return true;
     });
-
-  std::vector<std::string> spawned;
-  _ecm.EachNew<components::Actor, components::Name>(
-    [&](const Entity &_entity, const components::Actor*, const components::Name* name) -> bool
-    {
-      const auto it = this->spawning_queue.find(name->Data());
-      if (it == this->spawning_queue.end())
-        return true;
-
-      spawned.push_back(it->first);
-      this->agent_map.insert({_entity, it->second});
-      this->agent_name_map.insert({name->Data(), it->second});
-      this->reverse_agent_name_map.insert({it->second, name->Data()});
-      return true;
-    });
-
-  for (const auto& s : spawned)
-  {
-    this->spawning_queue.erase(s);
-  }
 }
 
 GZ_ADD_PLUGIN(rusty::RustySystem,
