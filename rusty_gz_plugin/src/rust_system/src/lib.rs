@@ -8,7 +8,7 @@ use rmf_crowdsim::rmf::RMFPlanner;
 use rmf_crowdsim::*;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
-use std::ffi::{c_int, c_double, c_char, CStr, c_void};
+use std::ffi::{c_int, c_double, c_char, CStr, c_void, CString};
 use std::fs;
 use serde::Deserialize;
 use rmf_site_format::legacy::nav_graph::NavGraph;
@@ -131,12 +131,45 @@ fn default_eyesight_range() -> f64 {
     5.0
 }
 
+type SpawnFn = extern fn(*mut c_void, u64, *const c_char, f64, f64, f64) -> ();
+type MovingFn = extern fn(*mut c_void, u64);
+type IdleFn = extern fn(*mut c_void, u64);
+
 /// Spawn callback
 pub struct Callbacks {
     pub system: *mut c_void,
-    pub spawn: extern fn(*mut c_void, u64, f64, f64, f64) -> ()
+    pub spawn: SpawnFn,
+    pub moving: MovingFn,
+    pub idle: IdleFn,
 }
 
+impl EventListener for Callbacks {
+    fn agent_spawned(&mut self, position: Vec2f, yaw: f64, model: &String, agent: AgentId) {
+        unsafe {
+            match CString::new(model.clone()) {
+                Ok(model) => {
+                    (self.spawn)(self.system, agent as u64, model.as_ptr(), position.x, position.y, yaw);
+                }
+                Err(err) => {
+                    println!("Unable to convert model while triggering agent_spawned: {err:?}");
+                }
+            }
+        }
+    }
+
+    fn agent_moving(&mut self, agent: AgentId) {
+        (self.moving)(self.system, agent as u64);
+    }
+
+    fn agent_idle(&mut self, agent: AgentId) {
+        (self.idle)(self.system, agent as u64);
+    }
+
+    /// Called each time an agent is destroyed
+    fn agent_destroyed(&mut self, agent: AgentId) {
+        println!("Removed {}", agent);
+    }
+}
 
 #[repr(C)]
 pub struct Position {
@@ -158,7 +191,6 @@ pub struct SimulationBinding
     crowd_sim: Simulation<LocationHash2D>,
     agent_map: HashMap<String, usize>,
     robot_map: HashMap<String, Option<usize>>,
-    spawn_callback: Callbacks,
 }
 
 #[no_mangle]
@@ -166,7 +198,9 @@ pub extern "C" fn crowdsim_new(
     agent_path: *const c_char,
     nav_path: *const c_char,
     system: *mut c_void,
-    spawn: extern fn (*mut c_void, u64, f64, f64, f64) -> ()
+    spawn: SpawnFn,
+    moving: MovingFn,
+    idle: IdleFn,
 ) -> *mut SimulationBinding
 {
     // TODO(arjo): Calculate size based on rmf_planner
@@ -294,6 +328,7 @@ pub extern "C" fn crowdsim_new(
         crowd_sim.add_source_sink(Arc::new(SourceSink {
             source,
             orientation: ss.orientation,
+            model: ss.model.clone(),
             waypoints,
             radius_sink: ss.goal_radius,
             crowd_generator: Arc::new(PoissonCrowd::new(ss.rate)),
@@ -320,7 +355,7 @@ pub extern "C" fn crowdsim_new(
         let local_planner = Arc::new(Mutex::new(Zanlungo::from(&agent.avoidance)));
 
         let id = match crowd_sim.add_persistent_agent(
-            start, agent.orientation, agent.goal_radius,
+            start, agent.orientation, &agent.model, agent.goal_radius,
             high_level_planner, local_planner, agent.avoidance.eyesight_range,
         ) {
             Ok(id) => id,
@@ -338,7 +373,7 @@ pub extern "C" fn crowdsim_new(
     }
 
     let event_listener = Arc::new(Mutex::new(
-        CrowdEventListener::new(Callbacks { system, spawn })));
+        Callbacks { system, spawn, moving, idle }));
     crowd_sim.add_event_listener(event_listener.clone());
 
     Box::into_raw(Box::new(SimulationBinding
@@ -346,7 +381,6 @@ pub extern "C" fn crowdsim_new(
         crowd_sim,
         agent_map,
         robot_map,
-        spawn_callback: Callbacks { system, spawn },
     }))
 }
 
@@ -455,27 +489,5 @@ pub extern "C" fn crowdsim_update_robot_position(
         robot_id as usize, position.into()
     ) {
         println!("Error updating robot {robot_id}: {err}");
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-struct CrowdEventListener {
-    callbacks: Callbacks
-}
-
-impl CrowdEventListener {
-    pub fn new(callbacks: Callbacks) -> Self {
-        Self{ callbacks }
-    }
-}
-
-impl EventListener for CrowdEventListener {
-    fn agent_spawned(&mut self, position: Vec2f, yaw: f64, agent: AgentId) {
-        (self.callbacks.spawn)(self.callbacks.system, agent as u64, position.x, position.y, yaw);
-    }
-
-    /// Called each time an agent is destroyed
-    fn agent_destroyed(&mut self, agent: AgentId) {
-        println!("Removed {}", agent);
     }
 }

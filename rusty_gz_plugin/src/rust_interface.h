@@ -40,6 +40,8 @@ struct Position
 
 /// Callback type for listening to spawn events.
 typedef void (*spawn_cb_t) (void* system, uint64_t id, const char* model, double x, double y, double yaw);
+typedef void (*moving_cb_t) (void* system, uint64_t id);
+typedef void (*idle_cb_t) (void* system, uint64_t id);
 
 /// \brief Create a new crowdsim instance
 /// \param[in] file_path - File path.
@@ -48,7 +50,9 @@ extern "C" simulation_binding_t * crowdsim_new(
     const char* agents_path,
     const char* nav_path,
     void* system,
-    spawn_cb_t cb);
+    spawn_cb_t spawn,
+    moving_cb_t moving,
+    idle_cb_t idle);
 
 /// \brief Free the crowdsim instance
 /// \param[in] t - Simulation instance to destroy.

@@ -31,6 +31,7 @@ find_package(gz-common5 REQUIRED COMPONENTS profiler)
 set(GZ_COMMON_VER ${gz-common5_VERSION_MAJOR})
 
 find_package(std_msgs REQUIRED)
+find_package(chart_sim_msgs REQUIRED)
 
 #============================================================================
 # Corrosion

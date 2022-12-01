@@ -1064,7 +1064,7 @@ dependencies = [
 [[package]]
 name = "rmf_crowdsim"
 version = "0.1.0"
-source = "git+https://github.com/open-rmf/rmf_crowdsim.git?branch=controller_types#3ac75134a7ed65e145dda16245ab53b38fce5924"
+source = "git+https://github.com/open-rmf/rmf_crowdsim.git?branch=controller_types#e679c6679ce1b92d6ae61131077004ba95091c72"
 dependencies = [
  "image",
  "imageproc",

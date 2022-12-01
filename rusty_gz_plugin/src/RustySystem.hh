@@ -49,10 +49,11 @@ namespace rusty
               const gz::sim::EntityComponentManager &_ecm) override = 0;
 
     private: simulation_binding_t* crowdsim;
-    public: std::unordered_map<gz::sim::Entity, uint64_t> robot_map;
-    public: std::unordered_map<gz::sim::Entity, uint64_t> agent_map;
-
-    public: std::unordered_map<std::string, uint64_t> spawning_queue;
+    public:
+      std::unordered_map<gz::sim::Entity, uint64_t> robot_map;
+      std::unordered_map<gz::sim::Entity, uint64_t> agent_map;
+      std::unordered_map<uint64_t, std::string> reverse_agent_map;
+      std::unordered_map<std::string, uint64_t> spawning_queue;
   };
 }
 

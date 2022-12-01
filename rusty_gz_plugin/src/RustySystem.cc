@@ -73,6 +73,12 @@ extern "C" void spawn_agent(
     system->spawning_queue.insert({name, id});
 }
 
+extern "C" void moving_agent(void* v_system, uint64_t id)
+{
+  auto* system = static_cast<RustySystem*>(v_system);
+
+}
+
 RustySystem::RustySystem()
 {
 
@@ -197,6 +203,7 @@ void RustySystem::PostUpdate(
 
       spawned.push_back(it->first);
       this->agent_map.insert({_entity, it->second});
+      this->reverse_agent_map.insert({it->second, name->Data()});
       return true;
     });
 
