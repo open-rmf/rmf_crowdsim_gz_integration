@@ -17,6 +17,8 @@
 #include <gz/common/StringUtils.hh>
 #include <chart_sim_msgs/msg/agent_go_to_place.hpp>
 
+#include <rclcpp/rclcpp.hpp>
+
 using namespace rusty;
 
 using namespace gz;
@@ -218,6 +220,7 @@ void RustySystem::PreUpdate(const gz::sim::UpdateInfo &_info,
   {
     return;
   }
+  rclcpp::spin_some(this->node);
 
   for (auto [e, robot_id] : this->robot_map)
   {
