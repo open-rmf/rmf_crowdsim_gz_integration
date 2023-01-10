@@ -31,6 +31,8 @@ find_package(gz-common5 REQUIRED COMPONENTS profiler)
 set(GZ_COMMON_VER ${gz-common5_VERSION_MAJOR})
 
 find_package(std_msgs REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(chart_sim_msgs REQUIRED)
 
 #============================================================================
 # Corrosion
@@ -61,7 +63,17 @@ add_library(RustySystem SHARED
 target_link_libraries(RustySystem PUBLIC
   rust_system
   gz-plugin${GZ_PLUGIN_VER}::gz-plugin${GZ_PLUGIN_VER}
-  gz-sim${GZ_SIM_VER}::gz-sim${GZ_SIM_VER})
+  gz-sim${GZ_SIM_VER}::gz-sim${GZ_SIM_VER}
+  ${chart_sim_msgs_LIBRARIES}
+  ${rclcpp_LIBRARIES}
+)
+
+target_include_directories(
+  RustySystem
+  PUBLIC
+    ${chart_sim_msgs_INCLUDE_DIRS}
+    ${rclcpp_INCLUDE_DIRS}
+)
 
 install(TARGETS RustySystem DESTINATION lib)
 ament_package()

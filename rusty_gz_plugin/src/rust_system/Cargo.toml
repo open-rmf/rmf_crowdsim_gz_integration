@@ -6,7 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rmf_crowdsim = { git = "https://github.com/open-rmf/rmf_crowdsim.git", branch = "arjo/feat/zanlungo_local_strategy" }
+rmf_crowdsim = { git = "https://github.com/open-rmf/rmf_crowdsim.git", branch = "controller_types" }
+rmf_site_format = { git = "https://github.com/open-rmf/rmf_site", branch = "export_occupancy" }
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.8.23"
 
 [lib]
 crate-type=["staticlib"]

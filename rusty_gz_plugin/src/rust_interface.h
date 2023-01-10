@@ -27,9 +27,11 @@ extern "C"{
 struct Position
 {
     /// \brief X position
-    float x;
+    double x;
     /// \brief Y position
-    float y;
+    double y;
+    /// \brief The yaw for the agent
+    double yaw;
     /// \brief Visbility: Used by crowdsim_query_position to return existence
     /// of an object. 0 if ok -1 if object is missing.
     int visible;
@@ -37,31 +39,26 @@ struct Position
 }
 
 /// Callback type for listening to spawn events.
-typedef void (*spawn_cb_t) (uint64_t id, double x, double y);
+typedef void (*spawn_cb_t) (void* system, uint64_t id, const char* name, const char* model, double x, double y, double yaw);
+typedef void (*moving_cb_t) (void* system, uint64_t id);
+typedef void (*idle_cb_t) (void* system, uint64_t id);
+typedef void (*goal_reached_cb_t) (void* system, uint64_t agent_id, uint64_t goal_id);
 
 /// \brief Create a new crowdsim instance
 /// \param[in] file_path - File path.
 /// \param[in] cb - The spawn callback.
 extern "C" simulation_binding_t * crowdsim_new(
-    const char* file_path, spawn_cb_t cb);
+    const char* agents_path,
+    const char* nav_path,
+    void* system,
+    spawn_cb_t spawn,
+    moving_cb_t moving,
+    idle_cb_t idle,
+    goal_reached_cb_t reached);
 
 /// \brief Free the crowdsim instance
 /// \param[in] t - Simulation instance to destroy.
 extern "C" void crowdsim_free(simulation_binding_t *t);
-
-/// \brief Adds a source and a sink
-/// \param crowdsim_instance The instance to add the source to
-/// \param start The start point.
-/// \param waypoints The waypoints.
-/// \param num_waypoints Number of waypoints.
-/// \param rate Rate of spawning new rustlings.
-extern "C" void crowdsim_add_source_sink(
-    simulation_binding_t *crowdsim_instance,
-    Position start,
-    Position* waypoints,
-    uint64_t num_waypoints,
-    double rate
-    );
 
 /// \brief Query position at current simulation time step.
 /// \param[in] t - Simulation instance
@@ -78,3 +75,20 @@ extern "C" Position crowdsim_query_position(
 extern "C" void crowdsim_run(
     simulation_binding_t* t,
     float timestep);
+
+extern "C" int64_t crowdsim_request_goal(
+    simulation_binding_t* t,
+    uint64_t agent_id,
+    const char* location);
+
+/// \brief If the model_name matches the name of a robot that needs to be
+/// updated then get its ID. Otherwise get -1.
+extern "C" int64_t crowdsim_get_robot_id(
+    simulation_binding_t* t,
+    const char* model_name);
+
+/// Update the position of a robot
+extern "C" void crowdsim_update_robot_position(
+    simulation_binding_t* t,
+    uint64_t robot_id,
+    Position position);
