@@ -36,10 +36,49 @@ The plugin can be loaded like so:
 
 
 ### SDFormat Arguments
-* `<path>` - Parameter specifies the path to the RMF building YAML.
-* `<sources>` - List of crowd sources.
-    * `<source_sink>` - An individual crowd source-sink (agents are spawned and follow a fixed path).
-        * `<rate>` -Poisson rate at which to generate agents.
-        * `<start>` - 3-Vector of start position. (Note: currently z is ignored)
-        * `<waypoints>` - List of waypoints agent should go to . Agent is destroyed after reaching last waypoint
-            * `<waypoint>` - Waypoint to visit. 3-vector also but z is ignored.
+* `<agents>` - Path to a yaml file describing the agent behavior (see Agents File section below).
+* `<nav>` - Path to a navigation graph (produced by traffic-editor or site-editor) that contains the waypoints used by the agents.
+
+### Agents File
+
+Example yaml file below
+
+```
+# Name of the level that contains agents.
+# Only one floor is supported at the moment.
+level: L1
+
+# Descriptions of persistent agents in the world.
+# Persistent agents are always in the world and can be commanded
+# to move to designated locations at any time.
+agents:
+  # Unique name for the agent
+  nurse_1:
+    # Name of start location for the nurse
+    start: NurseDesk
+    # Model to use for the nurse
+    model: Nurse
+  elderly_patient_32:
+    start: bed_32
+    model: ElderlyPatient
+
+# Descriptions of source-sink patterns.
+# Source-Sinks will generate temporary agents that spawn with a parameterized
+# uniform distribution, follow a sequence of waypoints, and then vanish.
+source_sinks:
+  - model: Visitor
+    source: ward_45_entrance
+    waypoints:
+    - NurseDesk
+    - bed_32
+    - ward_45_entrance
+    # average number of temporary agents spawned per second
+    rate: 0.01
+  - model: Orderly
+    source: utility_room
+    waypoints: [bed_32, bed_31, bed_30, bed_25, bed_24]
+    rate: 0.005
+```
+
+More parameters can be used to customize the agent behaviors.
+Those parameters can be found in the structs defined in [rusty_gz_plugin/src/rust_system/src/lib.rs](https://github.com/open-rmf/rmf_crowdsim_gz_integration/blob/master/rusty_gz_plugin/src/rust_system/src/lib.rs).
