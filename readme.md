@@ -20,20 +20,10 @@ The plugin can be loaded like so:
  <plugin
       filename="libRustySystem.so"
       name="rusty::RustySystem">
-      <!-- TODO: use relative paths -->
-    <path>/home/arjo/workspaces/chartsim/src/chart_sim_maps/maps/ward45/ward45.building.yaml</path>
-    <sources>
-        <source_sink>
-            <rate>1</rate>
-            <start>-23 -1 0</start>
-            <waypoints>
-              <waypoint>9 -3 0</waypoint>
-            </waypoints>
-        </source_sink>
-    </sources>
+    <nav>install/chart_sim_maps/share/chart_sim_maps/maps/ward45/nav_graphs/0.yaml</nav>
+    <agents>agents.yaml</agents>
 </plugin>
 ```
-
 
 ### SDFormat Arguments
 * `<agents>` - Path to a yaml file describing the agent behavior (see Agents File section below).
