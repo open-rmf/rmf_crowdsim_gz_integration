@@ -1,5 +1,10 @@
 # Gazebo Plugin Written in Rust: Crowd sim integration
 
+# Tutorial about how to use Rust in Gazebo plugins
+
+  - [Introduction tutorial](tutorial/tutorial_1.md)
+  - [How to convert some code of the ackermann plugin to Rust](tutorial/tutorial_2.md)
+
 ![](doc/rustling_march.gif)
 This repo contains my experiments with rust + gazebo.
 
